@@ -3,13 +3,19 @@
 import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { UserMenu } from "@/components/UserMenu";
+import { Avatar } from "@/components/Avatar";
+import { useAuth } from "@/lib/AuthContext";
+import { saveSession } from "@/lib/sessionStore";
+import { SERVER_URL } from "@/lib/socket";
 
 type SourceTab = "upload" | "link" | "screen";
 
 export default function Home() {
   const router = useRouter();
+  const { user, token: authToken, logout } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [displayName, setDisplayName] = useState("");
+  const displayName = user ? [user.firstName, user.lastName].filter(Boolean).join(" ") : "";
   const [joinCode, setJoinCode] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -21,8 +27,19 @@ export default function Home() {
   const [videoUrl, setVideoUrl] = useState("");
   const [creatingLink, setCreatingLink] = useState(false);
 
+  const isLoggedIn = !!user;
+
+  const handleAuthError = (msg: string) => {
+    if (msg.includes("token") || msg.includes("log in") || msg.includes("Authentication")) {
+      logout();
+      setError("Session expired. Please log in again.");
+    } else {
+      setError(msg);
+    }
+  };
+
   const handleCreateRoom = async () => {
-    if (!displayName.trim()) { setError("Please enter your name"); return; }
+    if (!isLoggedIn) { setError("Please log in to create a room"); return; }
     if (sourceTab === "upload") {
       if (!selectedFile) { setError("Please select a movie file"); return; }
       await handleUploadRoom();
@@ -43,7 +60,7 @@ export default function Home() {
       formData.append("hostName", displayName);
       formData.append("isOpen", String(isOpen));
       const xhr = new XMLHttpRequest();
-      const response = await new Promise<{ roomId: string }>((resolve, reject) => {
+      const response = await new Promise<{ roomId: string; hostToken: string }>((resolve, reject) => {
         xhr.upload.onprogress = (e) => {
           if (e.lengthComputable) {
             const pct = Math.round((e.loaded / e.total) * 100);
@@ -51,14 +68,17 @@ export default function Home() {
             if (pct === 100) setProcessing(true);
           }
         };
-        xhr.onload = () => xhr.status === 200 ? resolve(JSON.parse(xhr.responseText)) : reject(new Error("Upload failed"));
-        xhr.onerror = () => reject(new Error("Upload failed"));
-        xhr.open("POST", "/api/rooms");
+        xhr.onload = () => xhr.status === 200 ? resolve(JSON.parse(xhr.responseText)) : reject(new Error(`Upload failed: ${xhr.status} ${xhr.responseText}`));
+        xhr.onerror = () => reject(new Error("Network error during upload"));
+        xhr.open("POST", `${SERVER_URL}/api/rooms`);
+        xhr.withCredentials = true;
+        if (authToken) xhr.setRequestHeader("Authorization", `Bearer ${authToken}`);
         xhr.send(formData);
       });
+      saveSession(response.roomId, { token: response.hostToken, displayName, role: "host" });
       router.push(`/room/${response.roomId}?name=${encodeURIComponent(displayName)}`);
-    } catch {
-      setError("Failed to create room. Please try again.");
+    } catch (err: any) {
+      handleAuthError(err.message || "Failed to create room");
       setUploading(false);
       setProcessing(false);
       setUploadProgress(0);
@@ -69,16 +89,17 @@ export default function Home() {
     setCreatingLink(true);
     setError("");
     try {
-      const res = await fetch("/api/rooms/url", {
+      const res = await fetch(`${SERVER_URL}/api/rooms/url`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}) },
         body: JSON.stringify({ hostName: displayName, videoUrl: videoUrl.trim(), isOpen }),
       });
-      if (!res.ok) throw new Error("Failed");
-      const { roomId } = await res.json();
-      router.push(`/room/${roomId}?name=${encodeURIComponent(displayName)}`);
-    } catch {
-      setError("Failed to create room. Please try again.");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to create room");
+      saveSession(data.roomId, { token: data.hostToken, displayName, role: "host" });
+      router.push(`/room/${data.roomId}?name=${encodeURIComponent(displayName)}`);
+    } catch (err: any) {
+      handleAuthError(err.message);
       setCreatingLink(false);
     }
   };
@@ -87,24 +108,29 @@ export default function Home() {
     setCreatingLink(true);
     setError("");
     try {
-      const res = await fetch("/api/rooms/screen", {
+      const res = await fetch(`${SERVER_URL}/api/rooms/screen`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}) },
         body: JSON.stringify({ hostName: displayName, isOpen }),
       });
-      if (!res.ok) throw new Error("Failed");
-      const { roomId } = await res.json();
-      router.push(`/room/${roomId}?name=${encodeURIComponent(displayName)}`);
-    } catch {
-      setError("Failed to create room. Please try again.");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to create room");
+      saveSession(data.roomId, { token: data.hostToken, displayName, role: "host" });
+      router.push(`/room/${data.roomId}?name=${encodeURIComponent(displayName)}`);
+    } catch (err: any) {
+      handleAuthError(err.message);
       setCreatingLink(false);
     }
   };
 
   const handleJoinRoom = () => {
-    if (!displayName.trim()) { setError("Please enter your name"); return; }
     if (!joinCode.trim()) { setError("Please enter a room code"); return; }
-    router.push(`/room/${joinCode.trim()}?name=${encodeURIComponent(displayName)}`);
+    // If logged in, pass name in URL for auto-join; otherwise room's JoinGate will handle it
+    if (isLoggedIn) {
+      router.push(`/room/${joinCode.trim()}?name=${encodeURIComponent(displayName)}`);
+    } else {
+      router.push(`/room/${joinCode.trim()}`);
+    }
   };
 
   return (
@@ -163,7 +189,10 @@ export default function Home() {
           </svg>
           <span className="text-lg font-semibold text-text-primary">Movie Party</span>
         </div>
-        <ThemeToggle />
+        <div className="flex items-center gap-3">
+            <ThemeToggle />
+            <UserMenu />
+          </div>
       </nav>
 
       {/* Main */}
@@ -198,14 +227,22 @@ export default function Home() {
 
           {/* Action Card */}
           <div className="w-full max-w-md rounded-2xl border border-border-primary bg-bg-primary p-6 shadow-lg md:p-8">
-            {/* Name */}
-            <input
-              type="text"
-              placeholder="Your name"
-              value={displayName}
-              onChange={(e) => { setDisplayName(e.target.value); setError(""); }}
-              className="w-full rounded-lg border border-border-primary bg-bg-secondary px-4 py-3 text-sm text-text-primary placeholder-text-tertiary outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition"
-            />
+            {/* User identity */}
+            {isLoggedIn ? (
+              <div className="flex items-center gap-3 rounded-lg bg-bg-secondary px-4 py-3">
+                <Avatar avatar={user!.avatar} firstName={user!.firstName} lastName={user!.lastName} size="sm" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-text-primary truncate">{displayName}</p>
+                  <p className="text-xs text-text-tertiary truncate">{user!.email}</p>
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-lg border border-border-primary bg-bg-secondary px-4 py-3 text-center">
+                <p className="text-sm text-text-secondary">
+                  <a href="/login" className="text-accent-text font-medium hover:underline">Log in</a> to create a room
+                </p>
+              </div>
+            )}
 
             {error && <p className="mt-3 text-sm text-danger">{error}</p>}
 
@@ -326,11 +363,16 @@ export default function Home() {
             {/* Create */}
             <button
               onClick={handleCreateRoom}
-              disabled={uploading || creatingLink}
-              className="mt-5 w-full rounded-lg bg-accent px-5 py-3 text-sm font-semibold text-white transition hover:bg-accent-hover active:scale-[0.98] disabled:opacity-50"
+              disabled={uploading || creatingLink || !isLoggedIn}
+              className="mt-5 w-full rounded-lg bg-accent px-5 py-3 text-sm font-semibold text-white transition hover:bg-accent-hover active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Create Room
+              {isLoggedIn ? "Create Room" : "Log in to Create Room"}
             </button>
+            {!isLoggedIn && (
+              <p className="mt-2 text-center text-xs text-text-tertiary">
+                <a href="/login" className="text-accent-text hover:underline">Log in</a> or <a href="/signup" className="text-accent-text hover:underline">sign up</a> to create rooms
+              </p>
+            )}
 
             {/* Divider */}
             <div className="my-5 flex items-center gap-3">

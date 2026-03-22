@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist } from "next/font/google";
 import { ThemeProvider } from "@/components/ThemeProvider";
+import { AuthProvider } from "@/lib/AuthContext";
 import "./globals.css";
 
 const geist = Geist({
@@ -29,7 +30,9 @@ export default function RootLayout({
       </head>
       <body className="min-h-full flex flex-col font-sans bg-bg-primary text-text-primary antialiased">
         <ThemeProvider>
-          {children}
+          <AuthProvider>
+            {children}
+          </AuthProvider>
         </ThemeProvider>
       </body>
     </html>

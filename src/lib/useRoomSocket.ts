@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef, useCallback } from "react";
 import { getSocket, disconnectSocket } from "./socket";
+import { getSession, saveSession } from "./sessionStore";
 import type { SourceType, ChatMessage } from "./constants";
 
 interface VideoSyncData {
@@ -9,10 +10,17 @@ interface VideoSyncData {
   currentTime: number;
 }
 
+export interface Viewer {
+  name: string;
+  avatar: string;
+  verified: boolean;
+  isHost: boolean;
+}
+
 interface RoomState {
   connected: boolean;
   isHost: boolean;
-  viewers: string[];
+  viewers: Viewer[];
   messages: ChatMessage[];
   sourceType: SourceType;
   videoUrl: string;
@@ -49,64 +57,59 @@ export function useRoomSocket({ roomId, displayName, onVideoSync, onRoomReady }:
 
   useEffect(() => {
     const socket = getSocket();
+
     const joinRoom = () => {
       setState((s) => ({ ...s, connected: true }));
-      socket.emit("join-room", { roomId, displayName });
+      const stored = getSession(roomId);
+      socket.emit("join-room", { roomId, displayName, token: stored?.token });
     };
+
     socket.on("connect", joinRoom);
-    if (socket.connected) joinRoom();
-
-    socket.on("room-state", (roomState) => {
+    socket.on("room-state", (roomState: any) => {
+      if (roomState.token) {
+        saveSession(roomId, { token: roomState.token, displayName, role: roomState.isHost ? "host" : "viewer" });
+      }
       setState((s) => ({
-        ...s,
-        isHost: roomState.isHost,
-        viewers: roomState.viewers,
-        isOpen: roomState.isOpen,
-        sourceType: roomState.sourceType || "file",
-        videoUrl: roomState.videoUrl || "",
-        inWaitingRoom: false,
-        movieReady: true,
+        ...s, isHost: roomState.isHost, viewers: roomState.viewers, isOpen: roomState.isOpen,
+        sourceType: roomState.sourceType || "file", videoUrl: roomState.videoUrl || "",
+        inWaitingRoom: false, movieReady: true,
       }));
-      onRoomReady?.({
-        sourceType: roomState.sourceType,
-        videoUrl: roomState.videoUrl,
-        videoState: roomState.videoState,
-      });
+      onRoomReady?.({ sourceType: roomState.sourceType, videoUrl: roomState.videoUrl, videoState: roomState.videoState });
     });
-
-    socket.on("viewer-update", (data) => {
+    socket.on("viewer-update", (data: any) => {
       setState((s) => ({
-        ...s,
-        viewers: data.viewers,
-        messages: data.message
-          ? [...s.messages, { sender: "System", message: data.message, timestamp: Date.now() }]
-          : s.messages,
+        ...s, viewers: data.viewers,
+        messages: data.message ? [...s.messages, { sender: "System", message: data.message, timestamp: Date.now() }] : s.messages,
       }));
     });
-
     socket.on("waiting-room", () => setState((s) => ({ ...s, inWaitingRoom: true })));
     socket.on("rejected", () => setState((s) => ({ ...s, rejected: true, inWaitingRoom: false })));
-    socket.on("waiting-room-update", (data: { waiting: { id: string; name: string }[] }) => {
-      setState((s) => ({ ...s, waitingUsers: data.waiting }));
-    });
-    socket.on("room-access-changed", (data: { isOpen: boolean }) => {
-      setState((s) => ({ ...s, isOpen: data.isOpen }));
-    });
-
+    socket.on("waiting-room-update", (data: { waiting: { id: string; name: string }[] }) => setState((s) => ({ ...s, waitingUsers: data.waiting })));
+    socket.on("room-access-changed", (data: { isOpen: boolean }) => setState((s) => ({ ...s, isOpen: data.isOpen })));
     socket.on("video-sync", (data: VideoSyncData) => {
       ignoreNextEvent.current = true;
       onVideoSync(data);
       setTimeout(() => { ignoreNextEvent.current = false; }, 500);
     });
+    socket.on("chat-message", (msg: ChatMessage) => setState((s) => ({ ...s, messages: [...s.messages, msg] })));
+    socket.on("error", (err: any) => console.error("Socket error:", err.message));
 
-    socket.on("chat-message", (msg: ChatMessage) => {
-      setState((s) => ({ ...s, messages: [...s.messages, msg] }));
-    });
+    if (socket.connected) joinRoom();
 
-    socket.on("error", (err) => console.error("Socket error:", err.message));
-
-    return () => { disconnectSocket(); };
-  }, [roomId, displayName, onVideoSync, onRoomReady]);
+    return () => {
+      socket.off("connect", joinRoom);
+      socket.removeAllListeners("room-state");
+      socket.removeAllListeners("viewer-update");
+      socket.removeAllListeners("waiting-room");
+      socket.removeAllListeners("rejected");
+      socket.removeAllListeners("waiting-room-update");
+      socket.removeAllListeners("room-access-changed");
+      socket.removeAllListeners("video-sync");
+      socket.removeAllListeners("chat-message");
+      socket.removeAllListeners("error");
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roomId]);
 
   const sendMessage = useCallback((message: string) => {
     if (!message.trim()) return;

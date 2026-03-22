@@ -1,23 +1,124 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, Suspense } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { useWebRTC } from "@/lib/useWebRTC";
 import { useScreenShare } from "@/lib/useScreenShare";
 import { useRoomSocket } from "@/lib/useRoomSocket";
 import { useYouTubePlayer } from "@/lib/useYouTubePlayer";
+import { getSession } from "@/lib/sessionStore";
+import { useAuth } from "@/lib/AuthContext";
+import { SERVER_URL, disconnectSocket } from "@/lib/socket";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { PeerVideo } from "@/components/PeerVideo";
 import { ControlButton } from "@/components/ControlButton";
 import { StatusScreen } from "@/components/StatusScreen";
-import { MicIcon, CameraIcon, ChatIcon, PeopleIcon, ShareIcon, PhoneOffIcon, FullscreenIcon, CheckIcon, ScreenShareIcon, CloseIcon, SendIcon } from "@/components/icons";
+import { Avatar } from "@/components/Avatar";
+import { MicIcon, CameraIcon, ChatIcon, PeopleIcon, ShareIcon, PhoneOffIcon, PhoneIcon, FullscreenIcon, CheckIcon, ScreenShareIcon, CloseIcon, SendIcon, LeaveRoomIcon } from "@/components/icons";
+
+function JoinGate({ roomId, onJoin }: { roomId: string; onJoin: (name: string) => void }) {
+  const { user, loading } = useAuth();
+  const [guestName, setGuestName] = useState("");
+  const [error, setError] = useState("");
+
+  if (loading) return <StatusScreen title="Loading..." />;
+
+  const authName = user ? [user.firstName, user.lastName].filter(Boolean).join(" ") : "";
+
+  return (
+    <div className="flex min-h-screen flex-col bg-bg-primary">
+      <nav className="flex items-center justify-between border-b border-border-primary px-5 py-3 md:px-8">
+        <a href="/" className="flex items-center gap-2">
+          <svg className="h-6 w-6 text-accent" viewBox="0 0 24 24" fill="currentColor"><path d="M4 4h16a2 2 0 012 2v12a2 2 0 01-2 2H4a2 2 0 01-2-2V6a2 2 0 012-2zm0 2v12h16V6H4zm2 2l5 3.5L6 15V8z" /></svg>
+          <span className="text-lg font-semibold text-text-primary">Movie Party</span>
+        </a>
+        <ThemeToggle />
+      </nav>
+      <main className="flex flex-1 items-center justify-center px-4 py-10">
+        <div className="w-full max-w-md rounded-2xl border border-border-primary bg-bg-primary p-6 shadow-lg md:p-8 text-center">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-accent-subtle">
+            <svg className="h-7 w-7 text-accent-text" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+            </svg>
+          </div>
+          <h1 className="text-2xl font-bold text-text-primary">Join Movie Party</h1>
+          <p className="mt-1 text-sm text-text-secondary">Room: <span className="font-mono text-text-primary">{roomId}</span></p>
+
+          {user ? (
+            <div className="mt-6">
+              <p className="text-sm text-text-secondary">Joining as</p>
+              <p className="mt-1 text-lg font-semibold text-text-primary">{authName}</p>
+              <button onClick={() => onJoin(authName)}
+                className="mt-4 w-full rounded-lg bg-accent px-5 py-3 text-sm font-semibold text-white transition hover:bg-accent-hover active:scale-[0.98]">
+                Join Room
+              </button>
+            </div>
+          ) : (
+            <div className="mt-6">
+              {error && <p className="mb-3 text-sm text-danger">{error}</p>}
+              <input type="text" placeholder="Enter your name" value={guestName} onChange={(e) => { setGuestName(e.target.value); setError(""); }}
+                onKeyDown={(e) => { if (e.key === "Enter" && guestName.trim()) onJoin(guestName.trim()); }}
+                className="w-full rounded-lg border border-border-primary bg-bg-secondary px-4 py-3 text-sm text-text-primary placeholder-text-tertiary outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition" />
+              <button onClick={() => { if (!guestName.trim()) { setError("Please enter your name"); return; } onJoin(guestName.trim()); }}
+                className="mt-3 w-full rounded-lg bg-accent px-5 py-3 text-sm font-semibold text-white transition hover:bg-accent-hover active:scale-[0.98]">
+                Join as Guest
+              </button>
+              <div className="mt-4 flex items-center gap-3">
+                <div className="flex-1 h-px bg-border-primary" />
+                <span className="text-xs text-text-tertiary">or</span>
+                <div className="flex-1 h-px bg-border-primary" />
+              </div>
+              <div className="mt-4 flex gap-3">
+                <a href={`/login?redirect=${encodeURIComponent(`/room/${roomId}`)}`}
+                  className="flex-1 rounded-lg border border-accent px-4 py-2.5 text-sm font-semibold text-accent-text text-center transition hover:bg-accent-subtle">Log In</a>
+                <a href={`/signup?redirect=${encodeURIComponent(`/room/${roomId}`)}`}
+                  className="flex-1 rounded-lg border border-border-primary px-4 py-2.5 text-sm font-semibold text-text-secondary text-center transition hover:bg-surface-hover">Sign Up</a>
+              </div>
+            </div>
+          )}
+        </div>
+      </main>
+    </div>
+  );
+}
 
 export default function RoomPage() {
+  return <Suspense><RoomContent /></Suspense>;
+}
+
+function RoomContent() {
   const params = useParams();
   const searchParams = useSearchParams();
   const roomId = params.id as string;
-  const displayName = searchParams.get("name") || "Guest";
+  const nameFromUrl = searchParams.get("name");
 
+  const [joined, setJoined] = useState(false);
+  const [displayName, setDisplayName] = useState("");
+  const [mounted, setMounted] = useState(false);
+
+  // Resolve join state on client only to avoid hydration mismatch
+  useEffect(() => {
+    const stored = getSession(roomId);
+    if (nameFromUrl) {
+      setDisplayName(nameFromUrl);
+      setJoined(true);
+    } else if (stored?.token) {
+      setDisplayName(stored.displayName || "Guest");
+      setJoined(true);
+    }
+    setMounted(true);
+  }, [roomId, nameFromUrl]);
+
+  if (!mounted) return <StatusScreen title="Loading..." />;
+
+  if (!joined) {
+    return <JoinGate roomId={roomId} onJoin={(name) => { setDisplayName(name); setJoined(true); }} />;
+  }
+
+  return <RoomView roomId={roomId} displayName={displayName} />;
+}
+
+function RoomView({ roomId, displayName }: { roomId: string; displayName: string }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
@@ -87,6 +188,7 @@ export default function RoomPage() {
     setActivePanel((prev) => { if (prev === panel) return null; if (panel === "chat") setUnreadCount(0); return panel; });
   }, []);
   const toggleFullscreen = () => { if (!document.fullscreenElement) document.documentElement.requestFullscreen?.(); else document.exitFullscreen?.(); };
+  const leaveRoom = () => { disconnectSocket(); window.location.href = "/"; };
 
   const handleVideoEvent = useCallback((action: "play" | "pause" | "seek") => {
     const currentTime = videoRef.current?.currentTime ?? 0;
@@ -171,7 +273,7 @@ export default function RoomPage() {
             ) : room.sourceType === "gdrive" ? (
               <div className="w-full h-full flex items-center justify-center"><iframe src={`https://drive.google.com/file/d/${room.videoUrl}/preview`} className="w-full h-full max-w-[1280px] aspect-video" allow="autoplay" allowFullScreen /></div>
             ) : (
-              <video ref={videoRef} src={room.sourceType === "url" ? room.videoUrl : `/api/stream/${roomId}`} controls className="max-h-full max-w-full"
+              <video ref={videoRef} src={room.sourceType === "url" ? room.videoUrl : `${SERVER_URL}/api/stream/${roomId}`} controls className="max-h-full max-w-full"
                 onPlay={() => handleVideoEvent("play")} onPause={() => handleVideoEvent("pause")} onSeeked={() => handleVideoEvent("seek")}
                 {...(room.sourceType === "url" ? { crossOrigin: "anonymous" as const } : {})} />
             )}
@@ -262,9 +364,20 @@ export default function RoomPage() {
                     <div className="space-y-0.5">
                       {room.viewers.map((v, i) => (
                         <div key={i} className="flex items-center gap-3 rounded-lg px-3 py-2.5 hover:bg-surface-hover transition">
-                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent-subtle text-sm font-bold text-accent-text">{v.charAt(0).toUpperCase()}</div>
-                          <p className="flex-1 text-sm text-text-primary truncate min-w-0">{v}</p>
-                          {i === 0 && <span className="rounded-md bg-accent-subtle px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-accent-text">Host</span>}
+                          <Avatar avatar={v.avatar} firstName={v.name} size="sm" />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <p className="text-sm text-text-primary truncate">{v.name}</p>
+                              {v.verified ? (
+                                <svg className="h-3.5 w-3.5 text-accent-text flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                                  <path fillRule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                </svg>
+                              ) : (
+                                <span className="text-[9px] text-text-tertiary flex-shrink-0">Guest</span>
+                              )}
+                            </div>
+                          </div>
+                          {v.isHost && <span className="rounded-md bg-accent-subtle px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-accent-text">Host</span>}
                         </div>
                       ))}
                     </div>
@@ -277,21 +390,28 @@ export default function RoomPage() {
       </div>
 
       {/* Control Bar */}
-      <div className="flex items-center justify-center border-t border-border-primary bg-bg-primary px-4 py-3">
+      <div className="flex flex-shrink-0 items-center justify-center border-t border-border-primary bg-bg-primary px-4 py-2 md:py-3">
         <div className="flex items-center gap-2 md:gap-3">
+          {/* Call controls */}
           {inCall ? (
-            <ControlButton onClick={toggleMic} label={micOn ? "Mute" : "Unmute"}>
-              <div className={micOn ? "" : "text-danger"}><MicIcon on={micOn} /></div>
-            </ControlButton>
+            <>
+              <ControlButton onClick={toggleMic} label={micOn ? "Mute" : "Unmute"}>
+                <div className={micOn ? "" : "text-danger"}><MicIcon on={micOn} /></div>
+              </ControlButton>
+              <ControlButton onClick={toggleCamera} label={cameraOn ? "Stop Video" : "Start Video"}>
+                <div className={cameraOn ? "" : "text-danger"}><CameraIcon on={cameraOn} /></div>
+              </ControlButton>
+              <ControlButton onClick={leaveCall} danger label="End Call"><PhoneOffIcon /></ControlButton>
+            </>
           ) : (
-            <ControlButton onClick={joinCall} label="Join Call"><MicIcon on={true} /></ControlButton>
-          )}
-          {inCall && (
-            <ControlButton onClick={toggleCamera} label={cameraOn ? "Stop Video" : "Start Video"}>
-              <div className={cameraOn ? "" : "text-danger"}><CameraIcon on={cameraOn} /></div>
+            <ControlButton onClick={joinCall} label="Join Call">
+              <PhoneIcon />
             </ControlButton>
           )}
+
           <div className="h-8 w-px bg-border-primary mx-1" />
+
+          {/* Room controls */}
           <ControlButton onClick={copyLink} active={copied} label={copied ? "Copied!" : "Invite"}>
             {copied ? <CheckIcon /> : <ShareIcon />}
           </ControlButton>
@@ -303,7 +423,11 @@ export default function RoomPage() {
             </ControlButton>
           )}
           <ControlButton onClick={toggleFullscreen} label="Fullscreen"><FullscreenIcon /></ControlButton>
-          {inCall && (<><div className="h-8 w-px bg-border-primary mx-1" /><ControlButton onClick={leaveCall} danger label="Leave Call"><PhoneOffIcon /></ControlButton></>)}
+
+          <div className="h-8 w-px bg-border-primary mx-1" />
+
+          {/* Leave room */}
+          <ControlButton onClick={leaveRoom} danger label="Leave Room"><LeaveRoomIcon /></ControlButton>
         </div>
       </div>
     </div>
