@@ -14,7 +14,7 @@ function getGmailClient() {
 }
 
 function buildRawEmail(to: string, subject: string, html: string): string {
-  const from = `"Movie Party Team" <${process.env.GMAIL_USER}>`;
+  const from = `"Movie Party" <${process.env.GMAIL_FROM || process.env.GMAIL_USER}>`;
   const lines = [
     `From: ${from}`,
     `To: ${to}`,
