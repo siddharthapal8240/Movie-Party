@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/AuthContext";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { PasswordInput } from "@/components/PasswordInput";
 import { SERVER_URL } from "@/lib/socket";
 
 export default function ResetPasswordPage() {
@@ -139,11 +140,11 @@ function ResetPasswordContent() {
             {/* New password fields */}
             <div>
               <label className="block text-xs font-medium text-text-tertiary mb-1.5">New password</label>
-              <input type="password" placeholder="Min 8 characters" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className={inputClass} />
+              <PasswordInput placeholder="Min 8 characters" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className={inputClass} />
             </div>
             <div>
               <label className="block text-xs font-medium text-text-tertiary mb-1.5">Confirm new password</label>
-              <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className={inputClass} />
+              <PasswordInput value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className={inputClass} />
             </div>
 
             <button type="submit" disabled={loading}

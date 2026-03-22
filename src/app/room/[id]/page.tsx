@@ -16,6 +16,73 @@ import { StatusScreen } from "@/components/StatusScreen";
 import { Avatar } from "@/components/Avatar";
 import { MicIcon, CameraIcon, ChatIcon, PeopleIcon, ShareIcon, PhoneOffIcon, PhoneIcon, FullscreenIcon, CheckIcon, ScreenShareIcon, CloseIcon, SendIcon, LeaveRoomIcon } from "@/components/icons";
 
+type LayoutMode = "theater" | "strip" | "sidebar" | "focus";
+const LAYOUT_KEY = "mp-layout-pref";
+
+function LayoutIcon() {
+  return <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v14a1 1 0 01-1 1H5a1 1 0 01-1-1V5z" /><path strokeLinecap="round" strokeLinejoin="round" d="M4 9h16M9 9v11" /></svg>;
+}
+
+function LayoutPicker({ layout, onChange, isMobile }: { layout: LayoutMode; onChange: (l: LayoutMode) => void; isMobile: boolean }) {
+  const [open, setOpen] = useState(false);
+  const layouts: { id: LayoutMode; label: string; desc: string; icon: React.ReactNode }[] = [
+    { id: "theater", label: "Theater", desc: "Floating cams over movie", icon: (
+      <svg viewBox="0 0 40 28" className="w-10 h-7"><rect x="1" y="1" width="38" height="26" rx="2" fill="currentColor" opacity="0.15" stroke="currentColor" strokeWidth="1.5" /><rect x="24" y="14" width="14" height="11" rx="1.5" fill="currentColor" opacity="0.6" /></svg>
+    )},
+    { id: "strip", label: "Strip", desc: "Cam strip above movie", icon: (
+      <svg viewBox="0 0 40 28" className="w-10 h-7"><rect x="1" y="1" width="38" height="26" rx="2" fill="currentColor" opacity="0.15" stroke="currentColor" strokeWidth="1.5" /><rect x="2" y="2" width="36" height="6" rx="1" fill="currentColor" opacity="0.6" /><line x1="14" y1="2" x2="14" y2="8" stroke="currentColor" opacity="0.3" strokeWidth="1" /><line x1="26" y1="2" x2="26" y2="8" stroke="currentColor" opacity="0.3" strokeWidth="1" /></svg>
+    )},
+    { id: "sidebar", label: "Sidebar", desc: "Cams on the right", icon: (
+      <svg viewBox="0 0 40 28" className="w-10 h-7"><rect x="1" y="1" width="38" height="26" rx="2" fill="currentColor" opacity="0.15" stroke="currentColor" strokeWidth="1.5" /><rect x="28" y="2" width="10" height="24" rx="1" fill="currentColor" opacity="0.6" /><line x1="28" y1="14" x2="38" y2="14" stroke="currentColor" opacity="0.3" strokeWidth="1" /></svg>
+    )},
+    { id: "focus", label: "Focus", desc: "Movie only, hide cams", icon: (
+      <svg viewBox="0 0 40 28" className="w-10 h-7"><rect x="1" y="1" width="38" height="26" rx="2" fill="currentColor" opacity="0.15" stroke="currentColor" strokeWidth="1.5" /><path d="M16 10l8 4-8 4V10z" fill="currentColor" opacity="0.5" /></svg>
+    )},
+  ];
+
+  return (
+    <div className="relative">
+      <ControlButton onClick={() => setOpen(!open)} active={open} label="Layout"><LayoutIcon /></ControlButton>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40 bg-black/20 md:bg-transparent" onClick={() => setOpen(false)} />
+          {isMobile ? (
+            /* Mobile: bottom sheet */
+            <div className="fixed bottom-0 left-0 right-0 z-50 rounded-t-2xl border-t border-border-primary bg-bg-primary shadow-2xl p-3 pb-[max(12px,env(safe-area-inset-bottom))] animate-slide-up">
+              <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-border-primary" />
+              <p className="px-1 pb-2 text-xs font-semibold text-text-primary">Choose Layout</p>
+              <div className="grid grid-cols-2 gap-2">
+                {layouts.map((l) => (
+                  <button key={l.id} onClick={() => { onChange(l.id); setOpen(false); }}
+                    className={`flex flex-col items-center gap-1.5 rounded-xl px-3 py-3 transition ${layout === l.id ? "bg-accent-subtle ring-2 ring-accent text-accent-text" : "bg-bg-secondary text-text-secondary active:bg-surface-hover"}`}>
+                    <div className={layout === l.id ? "text-accent-text" : "text-text-tertiary"}>{l.icon}</div>
+                    <p className="text-xs font-medium">{l.label}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            /* Desktop: dropdown */
+            <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 z-50 w-56 rounded-xl border border-border-primary bg-bg-primary shadow-xl p-1.5 animate-fade-in-up">
+              <p className="px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-text-tertiary">Layout</p>
+              {layouts.map((l) => (
+                <button key={l.id} onClick={() => { onChange(l.id); setOpen(false); }}
+                  className={`w-full flex items-center gap-3 rounded-lg px-2.5 py-2 text-left transition ${layout === l.id ? "bg-accent-subtle text-accent-text" : "text-text-secondary hover:bg-surface-hover hover:text-text-primary"}`}>
+                  <div className={layout === l.id ? "text-accent-text" : "text-text-tertiary"}>{l.icon}</div>
+                  <div>
+                    <p className="text-xs font-medium">{l.label}</p>
+                    <p className="text-[10px] opacity-60">{l.desc}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 function JoinGate({ roomId, onJoin }: { roomId: string; onJoin: (name: string) => void }) {
   const { user, loading } = useAuth();
   const [guestName, setGuestName] = useState("");
@@ -118,6 +185,10 @@ function RoomContent() {
   return <RoomView roomId={roomId} displayName={displayName} />;
 }
 
+function RotateIcon() {
+  return <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>;
+}
+
 function RoomView({ roomId, displayName }: { roomId: string; displayName: string }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -126,6 +197,60 @@ function RoomView({ roomId, displayName }: { roomId: string; displayName: string
   const [copied, setCopied] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [activePanel, setActivePanel] = useState<"chat" | "people" | null>(null);
+  const [controlsVisible, setControlsVisible] = useState(true);
+  const [isLandscape, setIsLandscape] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const [layout, setLayout] = useState<LayoutMode>("theater");
+  const [pipPos, setPipPos] = useState<{ x: number; y: number } | null>(null);
+  const pipDragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
+  const pipRef = useRef<HTMLDivElement>(null);
+  const controlsTimerRef = useRef<ReturnType<typeof setTimeout>>(null);
+
+  // Load saved layout preference
+  useEffect(() => {
+    const saved = localStorage.getItem(LAYOUT_KEY) as LayoutMode | null;
+    if (saved && ["theater", "strip", "sidebar", "focus"].includes(saved)) setLayout(saved);
+  }, []);
+
+  const changeLayout = useCallback((l: LayoutMode) => {
+    setLayout(l);
+    localStorage.setItem(LAYOUT_KEY, l);
+  }, []);
+
+  // Detect mobile + orientation
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth <= 768 || "ontouchstart" in window);
+    const checkOrientation = () => setIsLandscape(window.innerWidth > window.innerHeight);
+    checkMobile();
+    checkOrientation();
+    window.addEventListener("resize", () => { checkMobile(); checkOrientation(); });
+    const mql = window.matchMedia("(orientation: landscape)");
+    mql.addEventListener("change", checkOrientation);
+    return () => { window.removeEventListener("resize", checkMobile); mql.removeEventListener("change", checkOrientation); };
+  }, []);
+
+  // Auto-hide controls on mobile after 4 seconds
+  const showControls = useCallback(() => {
+    setControlsVisible(true);
+    if (controlsTimerRef.current) clearTimeout(controlsTimerRef.current);
+    if (isMobile) {
+      controlsTimerRef.current = setTimeout(() => {
+        if (!activePanel) setControlsVisible(false);
+      }, 4000);
+    }
+  }, [isMobile, activePanel]);
+
+  useEffect(() => { showControls(); }, [showControls]);
+
+  // Lock to landscape on mobile fullscreen
+  const goFullscreenLandscape = useCallback(async () => {
+    try {
+      await document.documentElement.requestFullscreen?.();
+      if (screen.orientation && "lock" in screen.orientation) {
+        await (screen.orientation as any).lock("landscape").catch(() => {});
+      }
+    } catch {}
+  }, []);
 
   // --- Video sync handlers ---
   const handleVideoSync = useCallback((data: { action: "play" | "pause" | "seek"; currentTime: number }) => {
@@ -187,7 +312,10 @@ function RoomView({ roomId, displayName }: { roomId: string; displayName: string
   const togglePanel = useCallback((panel: "chat" | "people") => {
     setActivePanel((prev) => { if (prev === panel) return null; if (panel === "chat") setUnreadCount(0); return panel; });
   }, []);
-  const toggleFullscreen = () => { if (!document.fullscreenElement) document.documentElement.requestFullscreen?.(); else document.exitFullscreen?.(); };
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) goFullscreenLandscape();
+    else { document.exitFullscreen?.(); if (screen.orientation && "unlock" in screen.orientation) (screen.orientation as any).unlock?.(); }
+  };
   const leaveRoom = () => { disconnectSocket(); window.location.href = "/"; };
 
   const handleVideoEvent = useCallback((action: "play" | "pause" | "seek") => {
@@ -207,65 +335,113 @@ function RoomView({ roomId, displayName }: { roomId: string; displayName: string
 
   const peerArray = Array.from(peers.values());
 
+  // Adapt layout for mobile constraints
+  // - Portrait mobile: sidebar → strip (not enough horizontal space)
+  // - Landscape mobile: sidebar works fine
+  const effectiveLayout: LayoutMode = (() => {
+    if (!inCall) return layout;
+    if (layout === "sidebar" && isMobile && !isLandscape) return "strip";
+    return layout;
+  })();
+
+  const mobileHideHeader = isMobile && isLandscape;
+
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-bg-primary">
-      {/* Header */}
-      <header className="flex items-center justify-between border-b border-border-primary bg-bg-primary px-4 py-2.5 md:px-6">
-        <div className="flex items-center gap-3">
-          <a href="/" className="text-base font-semibold text-text-primary">Movie Party</a>
-          <div className="h-4 w-px bg-border-primary" />
-          <span className="rounded-md bg-bg-tertiary px-2.5 py-0.5 text-xs text-text-secondary font-mono">{roomId}</span>
-          {room.isHost && <span className="rounded-md bg-accent-subtle px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-accent-text">Host</span>}
-        </div>
-        <div className="flex items-center gap-3">
-          <span className="text-xs text-text-tertiary">{room.viewers.length} watching</span>
-          <ThemeToggle />
-        </div>
-      </header>
+    <div className="flex h-[100dvh] flex-col overflow-hidden bg-bg-primary" onClick={isMobile ? showControls : undefined}>
+      {/* Header — hidden on mobile landscape */}
+      {!mobileHideHeader && (
+        <header className="flex items-center justify-between border-b border-border-primary bg-bg-primary px-3 py-2 md:px-6 md:py-2.5">
+          <div className="flex items-center gap-2 md:gap-3 min-w-0">
+            <a href="/" className="text-sm md:text-base font-semibold text-text-primary shrink-0">Movie Party</a>
+            <div className="h-4 w-px bg-border-primary" />
+            <span className="rounded-md bg-bg-tertiary px-2 py-0.5 text-[10px] md:text-xs text-text-secondary font-mono truncate">{roomId}</span>
+            {room.isHost && <span className="rounded-md bg-accent-subtle px-1.5 md:px-2 py-0.5 text-[9px] md:text-[10px] font-semibold uppercase tracking-wider text-accent-text shrink-0">Host</span>}
+          </div>
+          <div className="flex items-center gap-2 md:gap-3 shrink-0">
+            <span className="text-[10px] md:text-xs text-text-tertiary">{room.viewers.length} watching</span>
+            <ThemeToggle />
+          </div>
+        </header>
+      )}
 
       {/* Main */}
       <div className="flex flex-1 overflow-hidden">
-        <div className="flex flex-1 flex-col overflow-hidden">
-          {/* Peer strip */}
-          {inCall && (
-            <div className="flex flex-shrink-0 gap-2 overflow-x-auto bg-bg-secondary px-3 py-2 border-b border-border-primary relative z-10">
-              <div className="w-20 flex-shrink-0 md:w-32 lg:w-40">
+        <div className={`flex flex-1 overflow-hidden ${effectiveLayout === "sidebar" && inCall ? "flex-row" : "flex-col"}`}>
+          {/* Strip layout — cam strip on top */}
+          {inCall && effectiveLayout === "strip" && (
+            <div className={`flex flex-shrink-0 gap-1.5 md:gap-2 overflow-x-auto bg-bg-secondary px-2 md:px-3 py-1.5 md:py-2 border-b border-border-primary relative z-10 ${mobileHideHeader ? "py-1" : ""}`}>
+              <div className="w-16 flex-shrink-0 md:w-32 lg:w-40">
                 <PeerVideo stream={localStream} name="You" muted audioEnabled={micOn} videoEnabled={cameraOn} />
               </div>
               {peerArray.map((peer) => (
-                <div key={peer.id} className="w-20 flex-shrink-0 md:w-32 lg:w-40">
+                <div key={peer.id} className="w-16 flex-shrink-0 md:w-32 lg:w-40">
                   <PeerVideo stream={peer.stream} name={peer.name} audioEnabled={peer.audioEnabled} videoEnabled={peer.videoEnabled} />
                 </div>
               ))}
-              {peerArray.length === 0 && <div className="flex items-center px-3 text-xs text-text-tertiary">Waiting for others to join the call...</div>}
+              {peerArray.length === 0 && <div className="flex items-center px-2 text-[10px] md:text-xs text-text-tertiary">Waiting for others...</div>}
             </div>
           )}
 
           {/* Player */}
-          <div className="flex flex-1 min-h-0 items-center justify-center bg-black overflow-hidden">
+          <div className="flex flex-1 min-h-0 items-center justify-center bg-black overflow-hidden relative" onClick={isMobile ? showControls : undefined}>
+            {/* Theater layout — floating PiP cams */}
+            {inCall && effectiveLayout === "theater" && (
+              <div ref={pipRef}
+                className={`absolute z-20 flex gap-1 md:gap-1.5 rounded-lg md:rounded-xl bg-black/70 backdrop-blur-sm p-1 md:p-1.5 shadow-2xl
+                  ${isMobile && isLandscape ? "flex-col max-h-[80%] overflow-y-auto" : "flex-row max-w-[85%] overflow-x-auto"}`}
+                style={pipPos ? { bottom: "auto", right: "auto", top: Math.max(4, Math.min(pipPos.y, window.innerHeight - 80)), left: Math.max(4, Math.min(pipPos.x, window.innerWidth - 80)) } : isMobile && isLandscape ? { top: 8, right: 8 } : { bottom: isMobile ? 8 : 16, right: isMobile ? 6 : 16 }}
+                onTouchStart={(e) => {
+                  const touch = e.touches[0];
+                  const el = pipRef.current;
+                  if (!el) return;
+                  const rect = el.getBoundingClientRect();
+                  pipDragRef.current = { startX: touch.clientX, startY: touch.clientY, origX: rect.left, origY: rect.top };
+                }}
+                onTouchMove={(e) => {
+                  if (!pipDragRef.current) return;
+                  e.preventDefault();
+                  const touch = e.touches[0];
+                  const dx = touch.clientX - pipDragRef.current.startX;
+                  const dy = touch.clientY - pipDragRef.current.startY;
+                  const newX = Math.max(4, Math.min(pipDragRef.current.origX + dx, window.innerWidth - 80));
+                  const newY = Math.max(4, Math.min(pipDragRef.current.origY + dy, window.innerHeight - 60));
+                  setPipPos({ x: newX, y: newY });
+                }}
+                onTouchEnd={() => { pipDragRef.current = null; }}
+              >
+                <div className={`${isMobile ? "w-[72px]" : "w-28 md:w-36"} flex-shrink-0`}>
+                  <PeerVideo stream={localStream} name="You" muted audioEnabled={micOn} videoEnabled={cameraOn} />
+                </div>
+                {peerArray.map((peer) => (
+                  <div key={peer.id} className={`${isMobile ? "w-[72px]" : "w-28 md:w-36"} flex-shrink-0`}>
+                    <PeerVideo stream={peer.stream} name={peer.name} audioEnabled={peer.audioEnabled} videoEnabled={peer.videoEnabled} />
+                  </div>
+                ))}
+              </div>
+            )}
             {room.sourceType === "screen" ? (
               <div className="relative w-full h-full flex items-center justify-center">
                 {(room.isHost && isScreenSharing) || (!room.isHost && hostIsSharing) ? (
-                  <video ref={screenVideoRef} autoPlay playsInline muted={room.isHost} className="max-h-full max-w-full" />
+                  <video ref={screenVideoRef} autoPlay playsInline muted={room.isHost} className="max-h-full max-w-full object-contain" />
                 ) : room.isHost ? (
-                  <div className="flex flex-col items-center gap-4 text-center p-8">
-                    <svg className="h-16 w-16 text-text-tertiary" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
-                    <p className="text-lg font-semibold text-white">Ready to share your screen</p>
-                    <p className="text-sm text-gray-400 max-w-md">Open Netflix, Hotstar, or any app, then click below.</p>
-                    <button onClick={startScreenShare} className="mt-2 rounded-lg bg-accent px-8 py-3 font-medium text-white hover:bg-accent-hover transition flex items-center gap-2">
+                  <div className="flex flex-col items-center gap-3 md:gap-4 text-center p-4 md:p-8">
+                    <svg className="h-12 w-12 md:h-16 md:w-16 text-text-tertiary" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                    <p className="text-base md:text-lg font-semibold text-white">Ready to share your screen</p>
+                    <p className="text-xs md:text-sm text-gray-400 max-w-md">Open Netflix, Hotstar, or any app, then click below.</p>
+                    <button onClick={startScreenShare} className="mt-1 md:mt-2 rounded-lg bg-accent px-6 md:px-8 py-2.5 md:py-3 text-sm font-medium text-white hover:bg-accent-hover transition flex items-center gap-2">
                       <ScreenShareIcon />
                       Start Screen Share
                     </button>
                   </div>
                 ) : (
-                  <div className="flex flex-col items-center gap-4 text-center p-8">
-                    <div className="h-10 w-10 animate-spin rounded-full border-[3px] border-gray-600 border-t-accent" />
-                    <p className="text-lg font-semibold text-white">Waiting for host to share screen...</p>
+                  <div className="flex flex-col items-center gap-3 text-center p-4 md:p-8">
+                    <div className="h-8 w-8 md:h-10 md:w-10 animate-spin rounded-full border-[3px] border-gray-600 border-t-accent" />
+                    <p className="text-base md:text-lg font-semibold text-white">Waiting for host to share screen...</p>
                   </div>
                 )}
               </div>
             ) : room.sourceType === "youtube" ? (
-              <div className="w-full h-full flex items-center justify-center"><div id="yt-player" className="w-full max-w-[1280px] aspect-video" /></div>
+              <div className="w-full h-full flex items-center justify-center"><div id="yt-player" className="w-full h-full max-w-[1280px]" /></div>
             ) : room.sourceType === "vimeo" ? (
               <div className="w-full h-full flex items-center justify-center"><iframe src={`https://player.vimeo.com/video/${room.videoUrl}?autoplay=0&title=0&byline=0&portrait=0`} className="w-full h-full max-w-[1280px] aspect-video" allow="autoplay; fullscreen; picture-in-picture" allowFullScreen /></div>
             ) : room.sourceType === "dailymotion" ? (
@@ -273,18 +449,43 @@ function RoomView({ roomId, displayName }: { roomId: string; displayName: string
             ) : room.sourceType === "gdrive" ? (
               <div className="w-full h-full flex items-center justify-center"><iframe src={`https://drive.google.com/file/d/${room.videoUrl}/preview`} className="w-full h-full max-w-[1280px] aspect-video" allow="autoplay" allowFullScreen /></div>
             ) : (
-              <video ref={videoRef} src={room.sourceType === "url" ? room.videoUrl : `${SERVER_URL}/api/stream/${roomId}`} controls className="max-h-full max-w-full"
+              <video ref={videoRef} src={room.sourceType === "url" ? room.videoUrl : `${SERVER_URL}/api/stream/${roomId}`} controls playsInline
+                className="max-h-full max-w-full w-full object-contain"
                 onPlay={() => handleVideoEvent("play")} onPause={() => handleVideoEvent("pause")} onSeeked={() => handleVideoEvent("seek")}
                 {...(room.sourceType === "url" ? { crossOrigin: "anonymous" as const } : {})} />
             )}
+
+            {/* Mobile landscape: rotate hint */}
+            {isMobile && !isLandscape && !inCall && (
+              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-2 rounded-full bg-black/70 px-4 py-2 text-white text-xs animate-fade-in-up">
+                <RotateIcon />
+                <span>Rotate for fullscreen</span>
+              </div>
+            )}
           </div>
+
+          {/* Sidebar layout — cam grid on the right */}
+          {inCall && effectiveLayout === "sidebar" && (
+            <div className={`flex flex-col gap-1.5 overflow-y-auto bg-bg-secondary border-l border-border-primary p-1.5 ${isMobile ? "w-24" : "w-40 md:w-48 lg:w-56"}`}>
+              <div className="w-full">
+                <PeerVideo stream={localStream} name="You" muted audioEnabled={micOn} videoEnabled={cameraOn} />
+              </div>
+              {peerArray.map((peer) => (
+                <div key={peer.id} className="w-full">
+                  <PeerVideo stream={peer.stream} name={peer.name} audioEnabled={peer.audioEnabled} videoEnabled={peer.videoEnabled} />
+                </div>
+              ))}
+              {peerArray.length === 0 && <p className="text-center text-[10px] text-text-tertiary py-4">Waiting for others...</p>}
+            </div>
+          )}
         </div>
 
         {/* Side Panel */}
         {activePanel && (
           <>
             <div className="fixed inset-0 z-30 bg-overlay md:hidden" onClick={() => setActivePanel(null)} />
-            <div className="fixed right-0 top-0 bottom-0 z-40 flex w-80 flex-col border-l border-border-primary bg-bg-primary animate-slide-in md:relative md:z-auto md:w-80 lg:w-96 md:animate-none">
+            <div className={`fixed z-40 flex flex-col border-l border-border-primary bg-bg-primary animate-slide-in md:relative md:z-auto md:w-80 lg:w-96 md:animate-none
+              ${isMobile && isLandscape ? "left-0 top-0 bottom-0 w-72 border-l-0 border-r border-border-primary" : "right-0 top-0 bottom-0 w-80"}`}>
               <div className="flex items-center justify-between border-b border-border-primary px-4 py-3">
                 <h3 className="text-sm font-semibold text-text-primary">{activePanel === "chat" ? "Chat" : "People"}</h3>
                 <button onClick={() => setActivePanel(null)} className="rounded-full p-1.5 text-text-tertiary hover:bg-surface-hover hover:text-text-primary transition">
@@ -294,7 +495,7 @@ function RoomView({ roomId, displayName }: { roomId: string; displayName: string
 
               {activePanel === "chat" ? (
                 <>
-                  <div className="flex-1 overflow-y-auto p-4 space-y-2">
+                  <div className="flex-1 overflow-y-auto p-3 md:p-4 space-y-2">
                     {room.messages.length === 0 && <p className="text-center text-xs text-text-tertiary pt-8">No messages yet. Say hi!</p>}
                     {room.messages.map((msg, i) => (
                       <div key={i} className={`animate-fade-in-up ${msg.sender === "System" ? "text-center" : ""}`}>
@@ -313,12 +514,12 @@ function RoomView({ roomId, displayName }: { roomId: string; displayName: string
                     ))}
                     <div ref={chatEndRef} />
                   </div>
-                  <div className="border-t border-border-primary p-3">
+                  <div className="border-t border-border-primary p-2 md:p-3">
                     <div className="flex gap-2">
                       <input type="text" value={chatInput} onChange={(e) => setChatInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
                         placeholder="Send a message..."
-                        className="flex-1 rounded-lg border border-border-primary bg-bg-secondary px-3 py-2.5 text-sm text-text-primary placeholder-text-tertiary outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition" />
-                      <button onClick={handleSendMessage} className="rounded-lg bg-accent px-4 py-2.5 text-white hover:bg-accent-hover transition">
+                        className="flex-1 rounded-lg border border-border-primary bg-bg-secondary px-3 py-2 md:py-2.5 text-sm text-text-primary placeholder-text-tertiary outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition" />
+                      <button onClick={handleSendMessage} className="rounded-lg bg-accent px-3 md:px-4 py-2 md:py-2.5 text-white hover:bg-accent-hover transition">
                         <SendIcon />
                       </button>
                     </div>
@@ -389,9 +590,11 @@ function RoomView({ roomId, displayName }: { roomId: string; displayName: string
         )}
       </div>
 
-      {/* Control Bar */}
-      <div className="flex flex-shrink-0 items-center justify-center border-t border-border-primary bg-bg-primary px-4 py-2 md:py-3">
-        <div className="flex items-center gap-2 md:gap-3">
+      {/* Control Bar — auto-hides on mobile, compact in landscape */}
+      <div className={`flex flex-shrink-0 items-center justify-center border-t border-border-primary bg-bg-primary transition-all duration-300
+        ${mobileHideHeader ? "px-2 py-1" : "px-3 md:px-4 py-2 md:py-3"}
+        ${isMobile && !controlsVisible && !activePanel ? "translate-y-full opacity-0 pointer-events-none" : "translate-y-0 opacity-100"}`}>
+        <div className={`flex items-center ${mobileHideHeader ? "gap-1" : "gap-1.5 md:gap-3"}`}>
           {/* Call controls */}
           {inCall ? (
             <>
@@ -409,7 +612,7 @@ function RoomView({ roomId, displayName }: { roomId: string; displayName: string
             </ControlButton>
           )}
 
-          <div className="h-8 w-px bg-border-primary mx-1" />
+          <div className={`w-px bg-border-primary mx-0.5 md:mx-1 ${mobileHideHeader ? "h-6" : "h-8"}`} />
 
           {/* Room controls */}
           <ControlButton onClick={copyLink} active={copied} label={copied ? "Copied!" : "Invite"}>
@@ -422,9 +625,10 @@ function RoomView({ roomId, displayName }: { roomId: string; displayName: string
               <ScreenShareIcon />
             </ControlButton>
           )}
+          {inCall && <LayoutPicker layout={layout} onChange={changeLayout} isMobile={isMobile} />}
           <ControlButton onClick={toggleFullscreen} label="Fullscreen"><FullscreenIcon /></ControlButton>
 
-          <div className="h-8 w-px bg-border-primary mx-1" />
+          <div className={`w-px bg-border-primary mx-0.5 md:mx-1 ${mobileHideHeader ? "h-6" : "h-8"}`} />
 
           {/* Leave room */}
           <ControlButton onClick={leaveRoom} danger label="Leave Room"><LeaveRoomIcon /></ControlButton>

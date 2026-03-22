@@ -9,8 +9,8 @@ interface ControlButtonProps {
 
 export function ControlButton({ onClick, active, danger, label, badge, children }: ControlButtonProps) {
   return (
-    <button onClick={onClick} title={label} className="group relative flex flex-col items-center gap-1">
-      <div className={`relative flex h-11 w-11 items-center justify-center rounded-full transition-all duration-150 hover:scale-105
+    <button onClick={onClick} title={label} className="group relative flex flex-col items-center gap-0.5 md:gap-1">
+      <div className={`relative flex h-10 w-10 md:h-11 md:w-11 items-center justify-center rounded-full transition-all duration-150 active:scale-95 hover:scale-105
         ${danger ? "bg-danger text-white hover:bg-danger-hover"
           : active ? "bg-accent text-white"
           : "bg-bg-tertiary text-text-secondary hover:bg-surface-hover hover:text-text-primary"}`}>

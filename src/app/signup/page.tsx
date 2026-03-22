@@ -3,6 +3,7 @@
 import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { PasswordInput } from "@/components/PasswordInput";
 import { SERVER_URL } from "@/lib/socket";
 
 export default function SignupPage() {
@@ -121,8 +122,8 @@ function SignupContent() {
               <input type="text" placeholder="Last name" value={lastName} onChange={(e) => setLastName(e.target.value)} className={inputClass} />
             </div>
             <input type="email" placeholder="Email *" value={email} onChange={(e) => setEmail(e.target.value)} className={inputClass} />
-            <input type="password" placeholder="Password * (min 8 chars)" value={password} onChange={(e) => setPassword(e.target.value)} className={inputClass} />
-            <input type="password" placeholder="Confirm password *" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className={inputClass} />
+            <PasswordInput placeholder="Password * (min 8 chars)" value={password} onChange={(e) => setPassword(e.target.value)} className={inputClass} />
+            <PasswordInput placeholder="Confirm password *" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className={inputClass} />
             <input type="tel" placeholder="Phone (optional)" value={phone} onChange={(e) => setPhone(e.target.value)} className={inputClass} />
             <button type="submit" disabled={loading}
               className="w-full rounded-lg bg-accent px-5 py-3 text-sm font-semibold text-white transition hover:bg-accent-hover active:scale-[0.98] disabled:opacity-50">

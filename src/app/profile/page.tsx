@@ -6,6 +6,7 @@ import { useAuth } from "@/lib/AuthContext";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { UserMenu } from "@/components/UserMenu";
 import { Avatar } from "@/components/Avatar";
+import { PasswordInput } from "@/components/PasswordInput";
 import { SERVER_URL } from "@/lib/socket";
 
 export default function ProfilePage() {
@@ -206,15 +207,15 @@ export default function ProfilePage() {
             <div className="space-y-4">
               <div>
                 <label className="block text-xs font-medium text-text-tertiary mb-1.5">Current password</label>
-                <input type="password" value={currentPassword} onChange={(e) => { setCurrentPassword(e.target.value); setPasswordMsg(""); }} className={inputClass} />
+                <PasswordInput value={currentPassword} onChange={(e) => { setCurrentPassword(e.target.value); setPasswordMsg(""); }} className={inputClass} />
               </div>
               <div>
                 <label className="block text-xs font-medium text-text-tertiary mb-1.5">New password</label>
-                <input type="password" placeholder="Min 8 characters" value={newPassword} onChange={(e) => { setNewPassword(e.target.value); setPasswordMsg(""); }} className={inputClass} />
+                <PasswordInput placeholder="Min 8 characters" value={newPassword} onChange={(e) => { setNewPassword(e.target.value); setPasswordMsg(""); }} className={inputClass} />
               </div>
               <div>
                 <label className="block text-xs font-medium text-text-tertiary mb-1.5">Confirm new password</label>
-                <input type="password" value={confirmPassword} onChange={(e) => { setConfirmPassword(e.target.value); setPasswordMsg(""); }} className={inputClass} />
+                <PasswordInput value={confirmPassword} onChange={(e) => { setConfirmPassword(e.target.value); setPasswordMsg(""); }} className={inputClass} />
               </div>
               <button onClick={handlePasswordChange} disabled={changingPw}
                 className="w-full rounded-lg border border-border-primary px-5 py-2.5 text-sm font-semibold text-text-primary transition hover:bg-surface-hover active:scale-[0.98] disabled:opacity-50">

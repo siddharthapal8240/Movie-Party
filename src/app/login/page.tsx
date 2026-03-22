@@ -4,6 +4,7 @@ import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/AuthContext";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { PasswordInput } from "@/components/PasswordInput";
 import { SERVER_URL } from "@/lib/socket";
 
 export default function LoginPage() {
@@ -70,7 +71,7 @@ function LoginContent() {
 
           <form onSubmit={handleSubmit} className="mt-6 space-y-4">
             <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} className={inputClass} />
-            <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} className={inputClass} />
+            <PasswordInput placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} className={inputClass} />
             <div className="text-right">
               <a href={`/forgot-password`} className="text-xs font-medium text-accent-text hover:underline">Forgot password?</a>
             </div>
