@@ -23,7 +23,7 @@ function LayoutIcon() {
   return <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v14a1 1 0 01-1 1H5a1 1 0 01-1-1V5z" /><path strokeLinecap="round" strokeLinejoin="round" d="M4 9h16M9 9v11" /></svg>;
 }
 
-function LayoutPicker({ layout, onChange, isMobile }: { layout: LayoutMode; onChange: (l: LayoutMode) => void; isMobile: boolean }) {
+function LayoutPicker({ layout, onChange, isMobile, camSize, onCamSize }: { layout: LayoutMode; onChange: (l: LayoutMode) => void; isMobile: boolean; camSize: number; onCamSize: (s: number) => void }) {
   const [open, setOpen] = useState(false);
   const layouts: { id: LayoutMode; label: string; desc: string; icon: React.ReactNode }[] = [
     { id: "theater", label: "Theater", desc: "Floating cams over movie", icon: (
@@ -60,6 +60,23 @@ function LayoutPicker({ layout, onChange, isMobile }: { layout: LayoutMode; onCh
                   </button>
                 ))}
               </div>
+              {layout !== "focus" && (
+                <div className="mt-3 pt-3 border-t border-border-primary">
+                  <p className="px-1 pb-2 text-xs font-semibold text-text-primary">Camera Size</p>
+                  <div className="flex items-center gap-3 px-1">
+                    <span className="text-[10px] text-text-tertiary w-5">S</span>
+                    <div className="flex-1 flex items-center gap-1">
+                      {[0, 1, 2].map((s) => (
+                        <button key={s} onClick={() => onCamSize(s)}
+                          className={`flex-1 h-8 rounded-lg flex items-center justify-center transition ${camSize === s ? "bg-accent text-white" : "bg-bg-secondary text-text-secondary active:bg-surface-hover"}`}>
+                          <svg viewBox="0 0 24 16" className={s === 0 ? "w-5 h-3.5" : s === 1 ? "w-6 h-4" : "w-7 h-5"} fill="currentColor" opacity="0.7"><rect x="1" y="1" width="22" height="14" rx="2" /></svg>
+                        </button>
+                      ))}
+                    </div>
+                    <span className="text-[10px] text-text-tertiary w-5 text-right">L</span>
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             /* Desktop: dropdown */
@@ -75,6 +92,19 @@ function LayoutPicker({ layout, onChange, isMobile }: { layout: LayoutMode; onCh
                   </div>
                 </button>
               ))}
+              {layout !== "focus" && (
+                <div className="mt-1 pt-1.5 border-t border-border-primary px-2.5 pb-1">
+                  <p className="text-[10px] font-medium text-text-tertiary mb-1.5">Camera Size</p>
+                  <div className="flex items-center gap-1.5">
+                    {(["S", "M", "L"] as const).map((label, s) => (
+                      <button key={s} onClick={() => onCamSize(s)}
+                        className={`flex-1 rounded-md py-1 text-[10px] font-semibold transition ${camSize === s ? "bg-accent text-white" : "bg-bg-tertiary text-text-secondary hover:bg-surface-hover"}`}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </>
@@ -201,20 +231,46 @@ function RoomView({ roomId, displayName }: { roomId: string; displayName: string
   const [isLandscape, setIsLandscape] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [layout, setLayout] = useState<LayoutMode>("theater");
+  const [camSize, setCamSize] = useState(1); // 0=small, 1=medium, 2=large
   const [pipPos, setPipPos] = useState<{ x: number; y: number } | null>(null);
   const pipDragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
+  const pipResizeRef = useRef<{ startDist: number; startSize: number } | null>(null);
   const pipRef = useRef<HTMLDivElement>(null);
   const controlsTimerRef = useRef<ReturnType<typeof setTimeout>>(null);
 
-  // Load saved layout preference
+  // Cam size presets (width in px) for each context
+  const camSizes = {
+    pipMobile: [56, 72, 96],
+    pipDesktop: [96, 128, 176],
+    stripMobile: [52, 68, 88],
+    stripDesktop: [100, 140, 180],
+    sidebarMobile: [80, 100, 999], // 999 = full width
+    sidebarDesktop: [160, 200, 240],
+  };
+
+  const getCamWidth = useCallback((context: "pip" | "strip" | "sidebar") => {
+    const key = `${context}${isMobile ? "Mobile" : "Desktop"}` as keyof typeof camSizes;
+    const val = camSizes[key][camSize];
+    return val === 999 ? "100%" : `${val}px`;
+  }, [isMobile, camSize]);
+
+  // Load saved layout + cam size preference
   useEffect(() => {
     const saved = localStorage.getItem(LAYOUT_KEY) as LayoutMode | null;
     if (saved && ["theater", "strip", "sidebar", "focus"].includes(saved)) setLayout(saved);
+    const savedSize = localStorage.getItem("mp-cam-size");
+    if (savedSize !== null) setCamSize(Math.min(2, Math.max(0, parseInt(savedSize) || 1)));
   }, []);
 
   const changeLayout = useCallback((l: LayoutMode) => {
     setLayout(l);
     localStorage.setItem(LAYOUT_KEY, l);
+  }, []);
+
+  const changeCamSize = useCallback((s: number) => {
+    const clamped = Math.min(2, Math.max(0, s));
+    setCamSize(clamped);
+    localStorage.setItem("mp-cam-size", String(clamped));
   }, []);
 
   // Detect mobile + orientation
@@ -370,11 +426,11 @@ function RoomView({ roomId, displayName }: { roomId: string; displayName: string
           {/* Strip layout — cam strip on top */}
           {inCall && effectiveLayout === "strip" && (
             <div className={`flex flex-shrink-0 gap-1.5 md:gap-2 overflow-x-auto bg-bg-secondary px-2 md:px-3 py-1.5 md:py-2 border-b border-border-primary relative z-10 ${mobileHideHeader ? "py-1" : ""}`}>
-              <div className="w-16 flex-shrink-0 md:w-32 lg:w-40">
+              <div className="flex-shrink-0" style={{ width: getCamWidth("strip") }}>
                 <PeerVideo stream={localStream} name="You" muted audioEnabled={micOn} videoEnabled={cameraOn} />
               </div>
               {peerArray.map((peer) => (
-                <div key={peer.id} className="w-16 flex-shrink-0 md:w-32 lg:w-40">
+                <div key={peer.id} className="flex-shrink-0" style={{ width: getCamWidth("strip") }}>
                   <PeerVideo stream={peer.stream} name={peer.name} audioEnabled={peer.audioEnabled} videoEnabled={peer.videoEnabled} />
                 </div>
               ))}
@@ -391,6 +447,13 @@ function RoomView({ roomId, displayName }: { roomId: string; displayName: string
                   ${isMobile && isLandscape ? "flex-col max-h-[80%] overflow-y-auto" : "flex-row max-w-[85%] overflow-x-auto"}`}
                 style={pipPos ? { bottom: "auto", right: "auto", top: Math.max(4, Math.min(pipPos.y, window.innerHeight - 80)), left: Math.max(4, Math.min(pipPos.x, window.innerWidth - 80)) } : isMobile && isLandscape ? { top: 8, right: 8 } : { bottom: isMobile ? 8 : 16, right: isMobile ? 6 : 16 }}
                 onTouchStart={(e) => {
+                  if (e.touches.length === 2) {
+                    // Pinch start
+                    const dx = e.touches[0].clientX - e.touches[1].clientX;
+                    const dy = e.touches[0].clientY - e.touches[1].clientY;
+                    pipResizeRef.current = { startDist: Math.hypot(dx, dy), startSize: camSize };
+                    return;
+                  }
                   const touch = e.touches[0];
                   const el = pipRef.current;
                   if (!el) return;
@@ -398,6 +461,17 @@ function RoomView({ roomId, displayName }: { roomId: string; displayName: string
                   pipDragRef.current = { startX: touch.clientX, startY: touch.clientY, origX: rect.left, origY: rect.top };
                 }}
                 onTouchMove={(e) => {
+                  if (e.touches.length === 2 && pipResizeRef.current) {
+                    // Pinch resize
+                    e.preventDefault();
+                    const dx = e.touches[0].clientX - e.touches[1].clientX;
+                    const dy = e.touches[0].clientY - e.touches[1].clientY;
+                    const dist = Math.hypot(dx, dy);
+                    const ratio = dist / pipResizeRef.current.startDist;
+                    if (ratio > 1.3 && pipResizeRef.current.startSize < 2) { changeCamSize(pipResizeRef.current.startSize + 1); pipResizeRef.current.startDist = dist; pipResizeRef.current.startSize += 1; }
+                    else if (ratio < 0.7 && pipResizeRef.current.startSize > 0) { changeCamSize(pipResizeRef.current.startSize - 1); pipResizeRef.current.startDist = dist; pipResizeRef.current.startSize -= 1; }
+                    return;
+                  }
                   if (!pipDragRef.current) return;
                   e.preventDefault();
                   const touch = e.touches[0];
@@ -407,13 +481,13 @@ function RoomView({ roomId, displayName }: { roomId: string; displayName: string
                   const newY = Math.max(4, Math.min(pipDragRef.current.origY + dy, window.innerHeight - 60));
                   setPipPos({ x: newX, y: newY });
                 }}
-                onTouchEnd={() => { pipDragRef.current = null; }}
+                onTouchEnd={() => { pipDragRef.current = null; pipResizeRef.current = null; }}
               >
-                <div className={`${isMobile ? "w-[72px]" : "w-28 md:w-36"} flex-shrink-0`}>
+                <div className="flex-shrink-0" style={{ width: getCamWidth("pip") }}>
                   <PeerVideo stream={localStream} name="You" muted audioEnabled={micOn} videoEnabled={cameraOn} />
                 </div>
                 {peerArray.map((peer) => (
-                  <div key={peer.id} className={`${isMobile ? "w-[72px]" : "w-28 md:w-36"} flex-shrink-0`}>
+                  <div key={peer.id} className="flex-shrink-0" style={{ width: getCamWidth("pip") }}>
                     <PeerVideo stream={peer.stream} name={peer.name} audioEnabled={peer.audioEnabled} videoEnabled={peer.videoEnabled} />
                   </div>
                 ))}
@@ -466,7 +540,8 @@ function RoomView({ roomId, displayName }: { roomId: string; displayName: string
 
           {/* Sidebar layout — cam grid on the right */}
           {inCall && effectiveLayout === "sidebar" && (
-            <div className={`flex flex-col gap-1.5 overflow-y-auto bg-bg-secondary border-l border-border-primary p-1.5 ${isMobile ? "w-24" : "w-40 md:w-48 lg:w-56"}`}>
+            <div className="flex flex-col gap-1.5 overflow-y-auto bg-bg-secondary border-l border-border-primary p-1.5"
+              style={{ width: getCamWidth("sidebar") === "100%" ? (isMobile ? "120px" : "220px") : `calc(${getCamWidth("sidebar")} + 12px)` }}>
               <div className="w-full">
                 <PeerVideo stream={localStream} name="You" muted audioEnabled={micOn} videoEnabled={cameraOn} />
               </div>
@@ -625,7 +700,7 @@ function RoomView({ roomId, displayName }: { roomId: string; displayName: string
               <ScreenShareIcon />
             </ControlButton>
           )}
-          {inCall && <LayoutPicker layout={layout} onChange={changeLayout} isMobile={isMobile} />}
+          {inCall && <LayoutPicker layout={layout} onChange={changeLayout} isMobile={isMobile} camSize={camSize} onCamSize={changeCamSize} />}
           <ControlButton onClick={toggleFullscreen} label="Fullscreen"><FullscreenIcon /></ControlButton>
 
           <div className={`w-px bg-border-primary mx-0.5 md:mx-1 ${mobileHideHeader ? "h-6" : "h-8"}`} />
