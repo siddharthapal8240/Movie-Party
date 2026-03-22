@@ -104,7 +104,6 @@ const corsOrigin = process.env.CORS_ORIGIN || "http://localhost:3000";
 app.use(cors({ origin: corsOrigin, credentials: true }));
 app.use(express.json());
 app.use("/api/auth", authRouter);
-app.use("/avatars", express.static(path.join(process.cwd(), "uploads", "avatars")));
 
 const io = new SocketIOServer(httpServer, {
   cors: { origin: corsOrigin, credentials: true },

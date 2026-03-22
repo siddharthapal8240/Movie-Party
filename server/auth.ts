@@ -1,14 +1,16 @@
 import { Router } from "express";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-import fs from "fs";
-import path from "path";
 import Busboy from "busboy";
+import { v2 as cloudinary } from "cloudinary";
 import { createUser, findUserByEmail, findUserById, updateUserOtp, verifyUserEmail } from "./db";
 import { generateOtp, sendOtpEmail, sendPasswordResetEmail } from "./email";
 
-const avatarDir = path.join(process.cwd(), "uploads", "avatars");
-if (!fs.existsSync(avatarDir)) fs.mkdirSync(avatarDir, { recursive: true });
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
 const router = Router();
 function getJwtSecret() {
@@ -280,32 +282,34 @@ router.post("/avatar", (req, res) => {
   }
 
   const busboy = Busboy({ headers: req.headers, limits: { fileSize: 5 * 1024 * 1024 } }); // 5MB max
-  let savedFileName = "";
+  const chunks: Buffer[] = [];
+  let validFile = false;
 
   busboy.on("file", (_name: string, file: NodeJS.ReadableStream, info: { filename: string; mimeType: string }) => {
     if (!info.mimeType.startsWith("image/")) {
       file.resume();
       return;
     }
-    const ext = path.extname(info.filename || ".jpg").toLowerCase();
-    savedFileName = `${userId}${ext}`;
-    const savePath = path.join(avatarDir, savedFileName);
-    file.pipe(fs.createWriteStream(savePath));
+    validFile = true;
+    file.on("data", (chunk: Buffer) => chunks.push(chunk));
   });
 
   busboy.on("finish", async () => {
-    if (!savedFileName) { res.status(400).json({ error: "No image file provided" }); return; }
+    if (!validFile || chunks.length === 0) { res.status(400).json({ error: "No image file provided" }); return; }
     try {
       const user = await findUserById(userId);
       if (!user) { res.status(404).json({ error: "User not found" }); return; }
 
-      // Delete old avatar if different filename
-      if (user.avatar && user.avatar !== savedFileName) {
-        const oldPath = path.join(avatarDir, user.avatar);
-        if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
-      }
+      const buffer = Buffer.concat(chunks);
+      const result = await new Promise<{ secure_url: string; public_id: string }>((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+          { folder: "movie-party/avatars", public_id: userId, overwrite: true, transformation: [{ width: 256, height: 256, crop: "fill", gravity: "face" }] },
+          (err, result) => err ? reject(err) : resolve(result as any)
+        );
+        stream.end(buffer);
+      });
 
-      user.avatar = savedFileName;
+      user.avatar = result.secure_url;
       await user.save();
       res.json({ user: userResponse(user) });
     } catch (err) {

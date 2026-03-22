@@ -1,5 +1,3 @@
-import { SERVER_URL } from "@/lib/socket";
-
 interface AvatarProps {
   avatar?: string;
   firstName?: string;
@@ -22,7 +20,7 @@ export function Avatar({ avatar, firstName, lastName, size = "md", className = "
   if (avatar) {
     return (
       <img
-        src={`${SERVER_URL}/avatars/${avatar}`}
+        src={avatar}
         alt={initials}
         className={`${sizeClass} rounded-full object-cover ${className}`}
       />
