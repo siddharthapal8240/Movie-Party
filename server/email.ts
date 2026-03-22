@@ -57,13 +57,11 @@ function otpHtml(firstName: string, code: string, bodyText: string) {
 
           <!-- Header -->
           <tr>
-            <td style="background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); padding: 32px 40px; text-align: center;">
+            <td style="background:#1a73e8; padding: 32px 40px; text-align: center;">
               <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 auto;">
                 <tr>
                   <td style="vertical-align:middle;padding-right:10px;">
-                    <div style="width:36px;height:36px;background:rgba(255,255,255,0.2);border-radius:8px;display:inline-block;text-align:center;line-height:36px;">
-                      <span style="font-size:18px;">&#127910;</span>
-                    </div>
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="#ffffff"><path d="M4 4h16a2 2 0 012 2v12a2 2 0 01-2 2H4a2 2 0 01-2-2V6a2 2 0 012-2zm0 2v12h16V6H4zm2 2l5 3.5L6 15V8z" /></svg>
                   </td>
                   <td style="vertical-align:middle;">
                     <span style="color:#ffffff;font-size:22px;font-weight:700;letter-spacing:-0.3px;">Movie Party</span>
@@ -87,7 +85,7 @@ function otpHtml(firstName: string, code: string, bodyText: string) {
                 <tr>
                   ${digits.map((d) => `
                   <td style="padding:0 4px;">
-                    <div style="width:48px;height:56px;background:#f4f4f5;border:2px solid #e4e4e7;border-radius:10px;text-align:center;line-height:56px;font-size:28px;font-weight:700;color:#18181b;font-family:'SF Mono',Monaco,Consolas,monospace;">
+                    <div style="width:48px;height:56px;background:#e8f0fe;border:2px solid #1a73e8;border-radius:10px;text-align:center;line-height:56px;font-size:28px;font-weight:700;color:#1a73e8;font-family:'SF Mono',Monaco,Consolas,monospace;">
                       ${d}
                     </div>
                   </td>`).join("")}
@@ -100,7 +98,7 @@ function otpHtml(firstName: string, code: string, bodyText: string) {
           <tr>
             <td style="padding:16px 40px 32px;text-align:center;">
               <p style="margin:0;font-size:13px;color:#a1a1aa;">
-                &#9200; This code expires in <strong style="color:#71717a;">10 minutes</strong>
+                &#9200; This code expires in <strong style="color:#1a73e8;">10 minutes</strong>
               </p>
             </td>
           </tr>
